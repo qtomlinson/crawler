@@ -10,7 +10,7 @@ describe('CallFetch', () => {
     beforeEach(async () => await mockServer.start())
     afterEach(async () => await mockServer.stop())
 
-    it('checks if the response is JSON while sending GET request', async () => {
+    it('checks the JSON response while sending GET request', async () => {
       const path = '/registry.npmjs.com/redis/0.1.0'
       const expected = fs.readFileSync('test/fixtures/fetch/redis-0.1.0.json')
       await mockServer.forGet(path).thenReply(200, expected)
@@ -53,7 +53,7 @@ describe('CallFetch', () => {
       }
     })
 
-    it('checks if the response is text while sending GET request', async () => {
+    it('checks the text response while sending GET request', async () => {
       const path = '/proxy.golang.org/rsc.io/quote/@v/v1.3.0.mod'
       await mockServer.forGet(path).thenReply(200, 'module "rsc.io/quote"\n')
 
@@ -68,18 +68,21 @@ describe('CallFetch', () => {
       const expected = JSON.parse(fs.readFileSync('test/fixtures/fetch/redis-0.1.0.json'))
       const path = '/registry.npmjs.com/redis/0.1.0'
       await mockServer.forGet(path).thenStream(200, fs.createReadStream('test/fixtures/fetch/redis-0.1.0.json'))
+      const chunks = []
 
       const response = await callFetch({
         url: mockServer.urlFor(path),
         encoding: null
       })
-      const destination = 'test/fixtures/fetch/temp.json'
-      await new Promise(resolve => {
-        response.pipe(fs.createWriteStream(destination).on('finish', () => resolve(true)))
+      const downloaded = await new Promise((resolve, reject) => {
+        response
+          .on('data', chunk => {
+            chunks.push(chunk)
+          })
+          .on('end', () => resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))))
+          .on('error', reject)
       })
-      const downloaded = JSON.parse(fs.readFileSync(destination))
       expect(downloaded).to.be.deep.equal(expected)
-      fs.unlinkSync(destination)
     })
 
     it('should apply default headers ', async () => {
@@ -100,7 +103,7 @@ describe('CallFetch', () => {
       expect(requests[1].headers).to.include(defaultOptions.headers)
     })
 
-    it('checks if the response is text with uri option in GET request', async () => {
+    it('checks the text response with uri option in GET request', async () => {
       const path = '/proxy.golang.org/rsc.io/quote/@v/v1.3.0.mod'
       await mockServer.forGet(path).thenReply(200, 'done')
 
@@ -132,7 +135,7 @@ describe('CallFetch', () => {
     })
 
     describe('test simple', () => {
-      it('should handle 300 when simple is true by default', async () => {
+      it('should throw when simple is true by default', async () => {
         const path = '/registry.npmjs.com/redis/0.1.0'
         await mockServer.forGet(path).thenReply(300, 'test')
 
